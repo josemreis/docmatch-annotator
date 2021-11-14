@@ -1,0 +1,12 @@
+{
+    "path_to_input_file": "/home/jr/Desktop/test_input.csv",
+    "path_to_output_file": "/home/jr/Desktop/test_output.csv",
+    "target_doc_text_colname": "leading_paragraph_translated",
+    "reference_doc_text_colname": "ruling_text",
+    "target_doc_id_colname": "article_id",
+    "reference_doc_id_colname": "case_id",
+    "include_metadata": [
+        "judgment_date",
+        "date_published"
+    ]
+}
