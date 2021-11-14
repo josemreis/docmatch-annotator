@@ -1,10 +1,12 @@
 import argparse
-import tempfile, shutil
+import tempfile
+import sys
 import json
 import sys
 import pandas as pd
 import os
 import subprocess
+import re
 
 ## colors for the console notifications
 _W = "\033[0m"  # white (normal)
@@ -13,6 +15,9 @@ _G = "\033[32m"  # green
 _O = "\033[33m"  # orange
 _B = "\033[34m"  # blue
 _P = "\033[35m"  # purple
+
+## annotation header template
+ANNOTATION_HEADER_TEMPLATE = "\n\t\t\tRELEVANT METADATA:\n{metadata}\n-----------------------------------------------------------------------------\n\n\n"
 
 
 def parse_args() -> dict:
@@ -142,10 +147,6 @@ class DocMatchAnnotator(object):
         self.output_df = self.get_or_make_output_df()
         ## read in the input csv file
         self.input_df = self.prep_annotation_data()
-        # annotated tempfile - backup
-        backup_dir = tempfile.mkdtemp()
-        self.annotated_backup_file = os.path.join(backup_dir, "annotated_backup.csv")
-        self.gedit_processes = []
 
     def prep_annotation_data(self) -> pd.DataFrame:
         """Read in the input data, keep only the relevant features, and remove already coded"""
@@ -181,49 +182,154 @@ class DocMatchAnnotator(object):
             output_df = pd.read_csv(self.path_to_output_file, index_col=False)
         else:
             cols = [
-                "target_text",
                 "target_doc_id",
-                "reference_text",
                 "reference_doc_id",
                 "is_match",
-            ] + self.include_metadata
+            ]
             output_df = pd.DataFrame(columns=cols)
             output_df.to_csv(self.path_to_output_file, index=False)
         return output_df
-    
-    def _write_to_tempfile(self, txt: str, doc: str) -> str:
-        """ Write the text of a document onto a temp dir"""
-        my_tmpdir = tempfile.mkdtemp()
-        my_tempfile = os.path.join(my_tmpdir, f"{doc}.txt")
-        f = open(my_tempfile.name, "w")
-        f.write(txt)
-        f.close()
-        my_tempfile.close()
-        return my_tempfile.name
-    
-    def write_to_tempfile(self, txts:list, doc_ids:list) -> dict:
-        """ A wrpper to _write_to_tempfile """
-        out = {"filenames": [], "doc_ids": doc_ids}
-        for cur_txt, doc_id in zip(txts, doc_ids):
-            _filename = self._write_to_tempfile(txt = cur_txt, doc = doc_id)
-            out["filenames"].append(_filename)
-        return out
 
-    def open_gedit(self, files_dict: dict) -> None:
-        """ Given a dictionary containing the filenames of text files, open them in gedit """
+    def _write_to_tempfile(self, txt: str, doc: str) -> str:
+        """Write the text of a document onto a temp dir"""
+        my_tmpdir = tempfile.mkdtemp()
+        legal_name = re.sub("\s+|/", "_", doc)
+        my_tempfile = os.path.join(my_tmpdir, f"{legal_name}.txt")
+        with open(my_tempfile, "w") as f:
+            f.write(txt)
+        return my_tempfile
+
+    def write_to_tempfile(self, txts: list, doc_ids: list) -> None:
+        """A wrapper to _write_to_tempfile"""
+        self.files_to_annotate = []
+        for cur_txt, doc_id in zip(txts, doc_ids):
+            _filename = self._write_to_tempfile(txt=cur_txt, doc=doc_id)
+            self.files_to_annotate.append(_filename)
+
+    def open_gedit(self) -> None:
+        """Given a dictionary containing the filenames of text files, open them in gedit"""
         processes = []
-        for _file in files_dict.get("filenames").values():
+        for _file in self.files_to_annotate:
             process = subprocess.Popen(["gedit", _file])
             processes.append(process)
         self.current_gedit_processes = processes
-    
-    def close_gedit(self) -> None:
+
+    def close_gedit_processes(self) -> None:
+        """Close the gedit processes"""
         for process in self.current_gedit_processes:
             process.terminate()
-        
-            
-            
+
+    def prepare_annotation_header(self, doc_id: str) -> str:
+        """Prepare the header of the text file to be annotate"""
+        df = self.input_df[self.input_df.target_doc_id == doc_id][self.include_metadata]
+        # turn to dict
+        meta_dict = df.to_dict("records")[0]
+        metadata_string = "\n".join([f"\t\t\t\t{k}:{meta_dict[k]}" for k in meta_dict])
+        return ANNOTATION_HEADER_TEMPLATE.format(metadata=metadata_string)
+
+    def prepare_annotation_text(
+        self, targed_doc_id: str, reference_doc_id: str
+    ) -> tuple:
+        """Fetch the texts and, if applicable, metadata"""
+        ## prepare the header
+        header = self.prepare_annotation_header(doc_id=targed_doc_id)
+        target_text = (
+            header.format(doc_id=targed_doc_id)
+            + self.input_df[self.input_df["target_doc_id"] == targed_doc_id][
+                "target_text"
+            ].iloc[0]
+        )
+        reference_text = (
+            header.format(doc_id=reference_doc_id)
+            + self.input_df[self.input_df["reference_doc_id"] == reference_doc_id][
+                "reference_text"
+            ].iloc[0]
+        )
+        return target_text, reference_text
+
+    def display_docs_to_annotate(
+        self, targed_doc_id: str, reference_doc_id: str
+    ) -> bool:
+        """Open gedit and display the documents to annotate"""
+        # prepare the text files
+        target_text, reference_text = self.prepare_annotation_text(
+            targed_doc_id=targed_doc_id, reference_doc_id=reference_doc_id
+        )
+        # write them to temp files
+        self.write_to_tempfile(
+            txts=[target_text, reference_text],
+            doc_ids=[targed_doc_id, reference_doc_id],
+        )
+        # Display them on gedit
+        self.open_gedit()
+
+    def _annotate(self, targed_doc_id: str, reference_doc_id: str) -> bool:
+        """Open the doc dyand on gedit and ask if they match"""
+        # display them
+        print(
+            f"{_W}[+] Opening the document dyad via gedit: {targed_doc_id} --> {reference_doc_id}"
+        )
+        self.display_docs_to_annotate(
+            targed_doc_id=targed_doc_id, reference_doc_id=reference_doc_id
+        )
+        ## annotation
+        decision = "fooh"
+        while decision.lower() not in ["y", "n"]:
+            decision = input(f"\t{_O}[+] Are these two documents related? [y/n]:")
+            if decision.lower() == "y":
+                review_decision = True
+                print(f"\t\t{_G}[+] You chose: Match")
+            elif decision.lower() == "n":
+                review_decision = False
+                print(f"\t\t{_P}[+] You chose: Not a Match")
+            else:
+                print(f"\t{_R}[!] Please reply with 'y' or 'n'.")
+        # close gedit
+        self.close_gedit_processes()
+        return review_decision
+
+    def add_annotation(
+        self, target_doc_id: str, reference_doc_id: str, decision: bool
+    ) -> None:
+        """Write the annotation to the output file"""
+        self.output_df.loc[len(self.output_df.index)] = [
+            target_doc_id,
+            reference_doc_id,
+            decision,
+        ]
+
+    def write_annotations(self) -> None:
+        """Export the annotations"""
+        print(f"{_W} Exporting the annotated data to {self.path_to_output_file}")
+        self.output_df.to_csv(self.path_to_output_file, index=False)
+
+    def annotate(self) -> None:
+        """main method"""
+        print(
+            f"{_W}[+] Start annotation process.\n\tinput file -> {self.path_to_input_file}\n\toutput file -> {self.path_to_output_file}"
+        )
+        try:
+            for index, row in self.input_df.iterrows():
+                current_target_id = row["target_doc_id"]
+                current_reference_id = row["reference_doc_id"]
+                # dislay the docs and get the annotation decision
+                annot_decision = self._annotate(
+                    targed_doc_id=current_target_id,
+                    reference_doc_id=current_reference_id,
+                )
+                # add them
+                self.add_annotation(
+                    target_doc_id=current_target_id,
+                    reference_doc_id=current_reference_id,
+                    decision=annot_decision,
+                )
+        except KeyboardInterrupt:
+            print(f"\n{_R}[!] Exiting...")
+            self.write_annotations()
+            sys.exit(0)
+        self.write_annotations()
 
 
 if __name__ == "__main__":
     doc_annotator = DocMatchAnnotator()
+    doc_annotator.annotate()
