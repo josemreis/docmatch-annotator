@@ -1,15 +1,17 @@
 # docmatch-annotator
 
-This is a simple annotation tool for document matching. I wrote this CLI tool to avoid resorting to annotation tools which either have high set up costs or that are more focused in other (more complex) NLP tasks. It uses gedit to display document dyads, a terminal window to annotate whether they match, and that exports the results into a csv file.
+This is a simple annotation tool for document matching. I wrote this CLI tool to avoid resorting to annotation tools which either have high set up costs or that are more focused in other (more complex) NLP tasks. It uses gedit to display document dyads, a terminal window to annotate whether they match, and exports the results into a csv file.
 
 ![How it looks](resources/figs/screenshot.png)
 
 
- The tool can be configured either via the following command line arguments. 
+ The tool can be configured via the following command line arguments
 
 ```bash
-usage: domatch_annotator.py [-h] [-i PATH_TO_INPUT_FILE] [-o PATH_TO_OUTPUT_FILE] [-tt TARGET_DOC_TEXT_COLNAME] [-rt REFERENCE_DOC_TEXT_COLNAME]
-                            [-ti TARGET_DOC_ID_COLNAME] [-ri REFERENCE_DOC_ID_COLNAME] [-m INCLUDE_METADATA] [-c CONFIG_FILE]
+usage: domatch_annotator.py [-h] [-i PATH_TO_INPUT_FILE] [-o PATH_TO_OUTPUT_FILE]
+                            [-tt TARGET_DOC_TEXT_COLNAME] [-rt REFERENCE_DOC_TEXT_COLNAME]
+                            [-ti TARGET_DOC_ID_COLNAME] [-ri REFERENCE_DOC_ID_COLNAME]
+                            [-m INCLUDE_METADATA] [-c CONFIG_FILE]
 
 A gedit based annotation tool CLI.
 
@@ -28,13 +30,15 @@ optional arguments:
   -ri REFERENCE_DOC_ID_COLNAME, --reference-doc-id-colname REFERENCE_DOC_ID_COLNAME
                         Name of the column containing the id of the reference document
   -m INCLUDE_METADATA, --csv-include-metadata INCLUDE_METADATA
-                        Comma delimited list of metadata columns from the input file to keep in the output file as well as to display in a different geddit
-                        window, e.g. 'date,nchar,language'
+                        Comma delimited list of metadata columns from the input file to keep in the
+                        output file as well as to display in the header of the gedit window of the
+                        docs, e.g. 'date,nchar,language'
   -c CONFIG_FILE, --config-file CONFIG_FILE
                         Output csv file following the annotation
+
 ```
 
-Or via a config file saved in a json file like the one below.
+Or, alternatively, via a config file saved in a json file like the one below.
 
 ```json
 {
@@ -50,9 +54,17 @@ Or via a config file saved in a json file like the one below.
     ]
 }
 ```
-The path to the config file can be provided via the `-c` flag.
 
+# Usage
+
+Using the config file above.
 
 ```bash
-docmatch_annotator -c "config.json.sample"
+docmatch-annotator -c "config.json.sample"
+```
+
+Using the CLI flags
+
+```bash
+docmatch-annotator -i "/home/jr/Desktop/test_input.csv" -o "/home/jr/Desktop/test_output.csv" -tt "article_text" -rt "ruling_text" -ti "article_id" -ri "ruling_id" -m "judgment_date,date_published"
 ```

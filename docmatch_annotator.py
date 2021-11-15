@@ -88,7 +88,7 @@ def parse_args() -> dict:
         dest="include_metadata",
         type=str,
         default=None,
-        help="Comma delimited list of metadata columns from the input file to keep in the output file as well as to display in a different geddit window, e.g. 'date,nchar,language'",
+        help="Comma delimited list of metadata columns from the input file to keep in the output file as well as to display in the header of the gedit window of the docs, e.g. 'date,nchar,language'",
     )
     # path to json config
     parser.add_argument(
