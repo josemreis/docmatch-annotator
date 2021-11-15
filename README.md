@@ -52,6 +52,7 @@ Or via a config file saved in a json file like the one below.
 ```
 The path to the config file can be provided via the `-c` flag.
 
+
 ```bash
-python3 docmatch_annotator.py -c "config.json.sample"
+docmatch_annotator -c "config.json.sample"
 ```
