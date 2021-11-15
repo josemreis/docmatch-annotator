@@ -1,6 +1,6 @@
 # docmatch-annotator
 
-To avoid resorting to annotation tools which either have high set up costs or that are more focused in other NLP tasks, I wrote this CLI tool. It is a simple annotation tool which uses gedit to display document dyads, a terminal window to annotate whether they match, and that exports the results into a csv file.
+This is a simple annotation tool for document matching. I wrote this CLI tool to avoid resorting to annotation tools which either have high set up costs or that are more focused in other (more complex) NLP tasks. It uses gedit to display document dyads, a terminal window to annotate whether they match, and that exports the results into a csv file.
 
 ![How it looks](resources/figs/screenshot.png)
 
