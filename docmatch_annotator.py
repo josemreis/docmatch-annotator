@@ -329,7 +329,9 @@ class DocMatchAnnotator(object):
             sys.exit(0)
         self.write_annotations()
 
-
-if __name__ == "__main__":
+def main() -> None:
     doc_annotator = DocMatchAnnotator()
     doc_annotator.annotate()
+
+if __name__ == "__main__":
+    main()

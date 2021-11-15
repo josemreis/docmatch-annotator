@@ -1,2 +1,4 @@
 output
 config.json
+*.eg-info
+__pycache__
