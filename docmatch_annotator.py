@@ -263,6 +263,9 @@ class DocMatchAnnotator(object):
         # Display them on gedit
         self.open_gedit()
 
+    def parse_annotation_answer(self, input:str, expected:list) -> bool:
+        return input.lower().strip() in expected
+    
     def _annotate(self, targed_doc_id: str, reference_doc_id: str) -> bool:
         """Open the doc dyand on gedit and ask if they match"""
         # display them
@@ -274,12 +277,12 @@ class DocMatchAnnotator(object):
         )
         ## annotation
         decision = "fooh"
-        while decision.lower() not in ["y", "n"]:
+        while self.parse_annotation_answer(input = decision, expected = ["y", "n"]):
             decision = input(f"\t{_O}[+] Are these two documents related? [y/n]:")
-            if decision.lower() == "y":
+            if self.parse_annotation_answer(input = decision, expected = ["y"]):
                 review_decision = True
                 print(f"\t\t{_G}[+] You chose: Match")
-            elif decision.lower() == "n":
+            elif self.parse_annotation_answer(input = decision, expected = ["n"]):
                 review_decision = False
                 print(f"\t\t{_P}[+] You chose: Not a Match")
             else:
