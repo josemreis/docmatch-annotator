@@ -263,8 +263,8 @@ class DocMatchAnnotator(object):
         # Display them on gedit
         self.open_gedit()
 
-    def parse_annotation_answer(self, input:str, expected:list) -> bool:
-        return input.lower().strip() in expected
+    def parse_annotation_answer(self, user_input:str, expected:list) -> bool:
+        return user_input.lower().strip() in expected
     
     def _annotate(self, targed_doc_id: str, reference_doc_id: str) -> bool:
         """Open the doc dyand on gedit and ask if they match"""
@@ -277,12 +277,13 @@ class DocMatchAnnotator(object):
         )
         ## annotation
         decision = "fooh"
-        while self.parse_annotation_answer(input = decision, expected = ["y", "n"]):
+        review_decision = None
+        while not self.parse_annotation_answer(user_input = decision, expected = ["y", "n"]):
             decision = input(f"\t{_O}[+] Are these two documents related? [y/n]:")
-            if self.parse_annotation_answer(input = decision, expected = ["y"]):
+            if self.parse_annotation_answer(user_input = decision, expected = ["y"]):
                 review_decision = True
                 print(f"\t\t{_G}[+] You chose: Match")
-            elif self.parse_annotation_answer(input = decision, expected = ["n"]):
+            elif self.parse_annotation_answer(user_input = decision, expected = ["n"]):
                 review_decision = False
                 print(f"\t\t{_P}[+] You chose: Not a Match")
             else:
@@ -311,26 +312,29 @@ class DocMatchAnnotator(object):
         print(
             f"{_W}[+] Start annotation process.\n\tinput file -> {self.path_to_input_file}\n\toutput file -> {self.path_to_output_file}"
         )
-        try:
-            for index, row in self.input_df.iterrows():
-                current_target_id = row["target_doc_id"]
-                current_reference_id = row["reference_doc_id"]
-                # dislay the docs and get the annotation decision
-                annot_decision = self._annotate(
-                    targed_doc_id=current_target_id,
-                    reference_doc_id=current_reference_id,
-                )
-                # add them
-                self.add_annotation(
-                    target_doc_id=current_target_id,
-                    reference_doc_id=current_reference_id,
-                    decision=annot_decision,
-                )
-        except KeyboardInterrupt:
-            print(f"\n{_R}[!] Exiting...")
+        if self.input_df.shape[0] > 0:
+            try:
+                for index, row in self.input_df.iterrows():
+                    current_target_id = row["target_doc_id"]
+                    current_reference_id = row["reference_doc_id"]
+                    # dislay the docs and get the annotation decision
+                    annot_decision = self._annotate(
+                        targed_doc_id=current_target_id,
+                        reference_doc_id=current_reference_id,
+                    )
+                    # add them
+                    self.add_annotation(
+                        target_doc_id=current_target_id,
+                        reference_doc_id=current_reference_id,
+                        decision=annot_decision,
+                    )
+            except KeyboardInterrupt:
+                print(f"\n{_R}[!] Exiting...")
+                self.write_annotations()
+                sys.exit(0)
             self.write_annotations()
-            sys.exit(0)
-        self.write_annotations()
+        else:
+            print(f"{_W} All documents have been annotated")
 
 def main() -> None:
     doc_annotator = DocMatchAnnotator()
