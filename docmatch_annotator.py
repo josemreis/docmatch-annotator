@@ -178,14 +178,14 @@ def parse_args() -> dict:
         default=None,
         help="Name of the column containing the id of the reference document",
     )
-    # csv delimited list of other gedit_width to keep
+    # csv delimited list of other columns to keep
     parser.add_argument(
         "-m",
         "--csv-include-metadata",
         dest="include_metadata",
         type=str,
         default=None,
-        help="Comma delimited list of metadata gedit_width from the input file to keep in the output file as well as to display in the header of the gedit window of the docs, e.g. 'date,nchar,language'",
+        help="Comma delimited list of metadata columns from the input file to keep in the output file as well as to display in the header of the gedit window of the docs, e.g. 'date,nchar,language'",
     )
     # path to json config
     parser.add_argument(
@@ -209,7 +209,7 @@ def parse_args() -> dict:
 class DocMatchAnnotator(object):
     """DocMatchAnnotator class"""
 
-    def __init__(self) -> None:
+    def __init__(self, split_screen:bool = True) -> None:
         """DocMatchAnnotator instance"""
         self.parsed_args_dict = vars(parse_args())
         # read in the config file
@@ -251,7 +251,11 @@ class DocMatchAnnotator(object):
         print(
             f"{_W}[+] Detecting gedit's default window width for correctly displaying the text"
         )
-        self.gedit_width = detect_gedit_width()
+        self.split_screen = split_screen
+        if not split_screen:
+            self.gedit_width = detect_gedit_width()
+        else:
+            self.gedit_width = 92
 
     def prep_annotation_data(self) -> pd.DataFrame:
         """Read in the input data, keep only the relevant features, and remove already coded"""
@@ -291,7 +295,7 @@ class DocMatchAnnotator(object):
                 "reference_doc_id",
                 "is_match",
             ]
-            output_df = pd.DataFrame(gedit_width=cols)
+            output_df = pd.DataFrame(columns=cols)
             output_df.to_csv(self.path_to_output_file, index=False)
         return output_df
 
@@ -360,9 +364,21 @@ class DocMatchAnnotator(object):
         # Display them on gedit
         self.open_gedit()
 
-    def open_gedit(self) -> None:
+    def open_gedit(self, timeout: int = 20) -> None:
         """Given a dictionary containing the filenames of text files, open them in gedit"""
         self.current_gedit_process = subprocess.Popen(["gedit", self.annotation_file])
+        if self.split_screen:
+            # resize window so as to be displayed as split screen
+            window_title = self.annotation_file.split("/")[-1]
+            # wait for window to load
+            t = 0
+            while not list(os.popen(f"wmctrl -lGp | grep '{window_title}'")):
+                time.sleep(1)
+                t+=1
+                if t > timeout:
+                    raise OSError("Could not open the Gedit window")
+            time.sleep(1)
+            os.popen(f"wmctrl -r {window_title} -e 0,0,1848,976,1105")
 
     def close_gedit_processes(self) -> None:
         """Close the gedit processes"""
