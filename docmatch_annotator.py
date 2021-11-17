@@ -7,6 +7,9 @@ import pandas as pd
 import os
 import subprocess
 import re
+import math
+import os
+import time
 
 ## colors for the console notifications
 _W = "\033[0m"  # white (normal)
@@ -17,7 +20,101 @@ _B = "\033[34m"  # blue
 _P = "\033[35m"  # purple
 
 ## annotation header template
-ANNOTATION_HEADER_TEMPLATE = "\n\t\t\tRELEVANT METADATA:\n{metadata}\n-----------------------------------------------------------------------------\n\n\n"
+ANNOTATION_HEADER_TEMPLATE = "\n\tRELEVANT METADATA:\n{metadata}\n------------------------------------------------------------------------------------------------------------\n\n\n"
+
+
+def make_substrings(s, L):
+    """splits `s` into substrings of length L"""
+    i = 0
+    pieces = []
+    while i < len(s):
+        pieces.append(s[i : i + L])
+        i += L
+    return pieces
+
+
+def detect_gedit_width() -> int:
+    """detect the default window width from gedit using wmctrl"""
+    # open gedit
+    process = subprocess.Popen(["gedit", "just checking the window size..."])
+    time.sleep(5)
+    # subset the relevant active window using the pid of the process
+    relevant_window = [
+        l
+        for l in os.popen(f"wmctrl -lpG", "r").read().split("\n")
+        if str(process.pid) in l
+    ][0]
+    # fetch the width
+    width = [int(_) for _ in relevant_window.split() if re.match("[0-9]{2,}", _)][2]
+    # terminate the process
+    process.terminate()
+    return width
+
+
+def write_side_by_side(
+    text1,
+    text2,
+    gedit_width: int,
+    header: str = "my_header",
+    output_file: str = "/home/jr/Desktop/t.txt",
+    print_line_numbers=False,
+    col_padding=2,
+    delimiter="",
+):
+    """Concatenate two texts side by side. Only minor changes to: https://github.com/jxmorris12/side-by-side/blob/master/side_by_side/diff.py"""
+    if len(delimiter) > col_padding:
+        raise ValueError("Delimiter cannot be longer than padding")
+    # Split files into lines
+    lines1 = text1.split("\n")
+    lines2 = text2.split("\n")
+    # Get number of digits in line numbers
+    max_num_lines = max(len(lines1), len(lines2))
+    if print_line_numbers:
+        max_num_digits_in_line_num = math.ceil(math.log(max_num_lines))
+        col_width = (gedit_width - (max_num_digits_in_line_num) - col_padding) // 2
+        line_fmt = "{:<" + str(max_num_digits_in_line_num) + "}"
+    else:
+        col_width = (gedit_width - col_padding) // 2
+        max_num_digits_in_line_num = False
+        line_fmt = ""
+    # Print lines side by side
+    line_fmt += (
+        "{:<"
+        + str(col_width)
+        + "}"
+        + (" " * math.floor((col_padding - len(delimiter)) / 2.0))
+        + delimiter
+        + (" " * math.ceil((col_padding - len(delimiter)) / 2.0))
+        + "{:<"
+        + str(col_width)
+        + "}"
+    )
+
+    with open(output_file, "w+") as f:
+        print(header, file=f)
+        for i in range(max_num_lines):
+            # Get rows for this line for file 1.
+            l1 = ""
+            if i < len(lines1):
+                l1 = lines1[i]
+            rows1 = make_substrings(l1, col_width)
+            # Get rows for this line for file 2.
+            l2 = ""
+            if i < len(lines2):
+                l2 = lines2[i]
+            rows2 = make_substrings(l2, col_width)
+            # Print rows.
+            max_num_rows = max(len(rows1), len(rows2))
+            j = 0
+            while j < max_num_rows:
+                token1 = rows1[j] if j < len(rows1) else ""
+                token2 = rows2[j] if j < len(rows2) else ""
+                if print_line_numbers:
+                    row_num = i if j == 0 else ""
+                    print(line_fmt.format(row_num, token1, token2), file=f)
+                else:
+                    print(line_fmt.format(token1, token2), file=f)
+                j += 1
 
 
 def parse_args() -> dict:
@@ -45,7 +142,7 @@ def parse_args() -> dict:
         default=None,
         help="Output csv file following the annotation",
     )
-    # targed doc text col name
+    # target doc text col name
     parser.add_argument(
         "-tt",
         "--target-doc-text-colname",
@@ -63,7 +160,7 @@ def parse_args() -> dict:
         default=None,
         help="Name of the column containing the text of the reference document",
     )
-    # targed doc id col name
+    # target doc id col name
     parser.add_argument(
         "-ti",
         "--target-doc-id-colname",
@@ -81,14 +178,14 @@ def parse_args() -> dict:
         default=None,
         help="Name of the column containing the id of the reference document",
     )
-    # csv delimited list of other columns to keep
+    # csv delimited list of other gedit_width to keep
     parser.add_argument(
         "-m",
         "--csv-include-metadata",
         dest="include_metadata",
         type=str,
         default=None,
-        help="Comma delimited list of metadata columns from the input file to keep in the output file as well as to display in the header of the gedit window of the docs, e.g. 'date,nchar,language'",
+        help="Comma delimited list of metadata gedit_width from the input file to keep in the output file as well as to display in the header of the gedit window of the docs, e.g. 'date,nchar,language'",
     )
     # path to json config
     parser.add_argument(
@@ -147,6 +244,14 @@ class DocMatchAnnotator(object):
         self.output_df = self.get_or_make_output_df()
         ## read in the input csv file
         self.input_df = self.prep_annotation_data()
+        print(
+            f"{_W}[+] Start annotation process.\n\tinput file -> {self.path_to_input_file}\n\toutput file -> {self.path_to_output_file}"
+        )
+        ## detect gedit width
+        print(
+            f"{_W}[+] Detecting gedit's default window width for correctly displaying the text"
+        )
+        self.gedit_width = detect_gedit_width()
 
     def prep_annotation_data(self) -> pd.DataFrame:
         """Read in the input data, keep only the relevant features, and remove already coded"""
@@ -186,104 +291,106 @@ class DocMatchAnnotator(object):
                 "reference_doc_id",
                 "is_match",
             ]
-            output_df = pd.DataFrame(columns=cols)
+            output_df = pd.DataFrame(gedit_width=cols)
             output_df.to_csv(self.path_to_output_file, index=False)
         return output_df
 
-    def _write_to_tempfile(self, txt: str, doc: str) -> str:
+    def _make_temp_file(self, annotation_file_name: str) -> str:
         """Write the text of a document onto a temp dir"""
         my_tmpdir = tempfile.mkdtemp()
-        legal_name = re.sub("\s+|/", "_", doc)
+        legal_name = re.sub("\s+|/", "_", annotation_file_name)
         my_tempfile = os.path.join(my_tmpdir, f"{legal_name}.txt")
-        with open(my_tempfile, "w") as f:
-            f.write(txt)
         return my_tempfile
-
-    def write_to_tempfile(self, txts: list, doc_ids: list) -> None:
-        """A wrapper to _write_to_tempfile"""
-        self.files_to_annotate = []
-        for cur_txt, doc_id in zip(txts, doc_ids):
-            _filename = self._write_to_tempfile(txt=cur_txt, doc=doc_id)
-            self.files_to_annotate.append(_filename)
-
-    def open_gedit(self) -> None:
-        """Given a dictionary containing the filenames of text files, open them in gedit"""
-        processes = []
-        for _file in self.files_to_annotate:
-            process = subprocess.Popen(["gedit", _file])
-            processes.append(process)
-        self.current_gedit_processes = processes
-
-    def close_gedit_processes(self) -> None:
-        """Close the gedit processes"""
-        for process in self.current_gedit_processes:
-            process.terminate()
 
     def prepare_annotation_header(self, doc_id: str) -> str:
         """Prepare the header of the text file to be annotate"""
         df = self.input_df[self.input_df.target_doc_id == doc_id][self.include_metadata]
         # turn to dict
         meta_dict = df.to_dict("records")[0]
-        metadata_string = "\n".join([f"\t\t\t\t{k}:{meta_dict[k]}" for k in meta_dict])
+        metadata_string = "\n".join([f"\t{k}:{meta_dict[k]}" for k in meta_dict])
         return ANNOTATION_HEADER_TEMPLATE.format(metadata=metadata_string)
 
-    def prepare_annotation_text(
-        self, targed_doc_id: str, reference_doc_id: str
-    ) -> tuple:
-        """Fetch the texts and, if applicable, metadata"""
+    def write_annotation_text(
+        self, target_doc_id: str, reference_doc_id: str, text_file: str
+    ) -> None:
+        """Fetch the texts and  concatenate"""
         ## prepare the header
-        header = self.prepare_annotation_header(doc_id=targed_doc_id)
+        main_header = self.prepare_annotation_header(doc_id=target_doc_id)
         target_text = (
-            header.format(doc_id=targed_doc_id)
-            + self.input_df[self.input_df["target_doc_id"] == targed_doc_id][
+            f"DOC ID: {target_doc_id}"
+            + "\n---------------\n\n\n\n\n"
+            + self.input_df[self.input_df["target_doc_id"] == target_doc_id][
                 "target_text"
-            ].iloc[0]
+            ]
+            .iloc[0]
+            .replace("  ", "").replace("\n\n", "")
         )
         reference_text = (
-            header.format(doc_id=reference_doc_id)
+            f"DOC ID: {reference_doc_id}"
+            + "\n---------------\n\n\n\n\n"
             + self.input_df[self.input_df["reference_doc_id"] == reference_doc_id][
                 "reference_text"
-            ].iloc[0]
+            ]
+            .iloc[0]
+            .replace("  ", "").replace("\n\n", "")
         )
-        return target_text, reference_text
+        write_side_by_side(
+            target_text,
+            reference_text,
+            header=main_header,
+            gedit_width=self.gedit_width,
+            output_file=text_file,
+        )
+        self.annotation_file = text_file
 
     def display_docs_to_annotate(
-        self, targed_doc_id: str, reference_doc_id: str
+        self, target_doc_id: str, reference_doc_id: str
     ) -> bool:
         """Open gedit and display the documents to annotate"""
-        # prepare the text files
-        target_text, reference_text = self.prepare_annotation_text(
-            targed_doc_id=targed_doc_id, reference_doc_id=reference_doc_id
+        # make a temp file
+        annotation_file = self._make_temp_file(
+            annotation_file_name="---".join([target_doc_id, reference_doc_id])
         )
-        # write them to temp files
-        self.write_to_tempfile(
-            txts=[target_text, reference_text],
-            doc_ids=[targed_doc_id, reference_doc_id],
+        # prepare the text files
+        self.write_annotation_text(
+            target_doc_id=target_doc_id,
+            reference_doc_id=reference_doc_id,
+            text_file=annotation_file,
         )
         # Display them on gedit
         self.open_gedit()
 
-    def parse_annotation_answer(self, user_input:str, expected:list) -> bool:
+    def open_gedit(self) -> None:
+        """Given a dictionary containing the filenames of text files, open them in gedit"""
+        self.current_gedit_process = subprocess.Popen(["gedit", self.annotation_file])
+
+    def close_gedit_processes(self) -> None:
+        """Close the gedit processes"""
+        self.current_gedit_process.terminate()
+
+    def parse_annotation_answer(self, user_input: str, expected: list) -> bool:
         return user_input.lower().strip() in expected
-    
-    def _annotate(self, targed_doc_id: str, reference_doc_id: str) -> bool:
+
+    def _annotate(self, target_doc_id: str, reference_doc_id: str) -> bool:
         """Open the doc dyand on gedit and ask if they match"""
         # display them
         print(
-            f"{_W}[+] Opening the document dyad via gedit: {targed_doc_id} --> {reference_doc_id}"
+            f"{_W}[+] Opening the document dyad via gedit: {target_doc_id} --> {reference_doc_id}"
         )
         self.display_docs_to_annotate(
-            targed_doc_id=targed_doc_id, reference_doc_id=reference_doc_id
+            target_doc_id=target_doc_id, reference_doc_id=reference_doc_id
         )
         ## annotation
         decision = "fooh"
         review_decision = None
-        while not self.parse_annotation_answer(user_input = decision, expected = ["y", "n"]):
+        while not self.parse_annotation_answer(
+            user_input=decision, expected=["y", "n"]
+        ):
             decision = input(f"\t{_O}[+] Are these two documents related? [y/n]:")
-            if self.parse_annotation_answer(user_input = decision, expected = ["y"]):
+            if self.parse_annotation_answer(user_input=decision, expected=["y"]):
                 review_decision = True
                 print(f"\t\t{_G}[+] You chose: Match")
-            elif self.parse_annotation_answer(user_input = decision, expected = ["n"]):
+            elif self.parse_annotation_answer(user_input=decision, expected=["n"]):
                 review_decision = False
                 print(f"\t\t{_P}[+] You chose: Not a Match")
             else:
@@ -309,9 +416,6 @@ class DocMatchAnnotator(object):
 
     def annotate(self) -> None:
         """main method"""
-        print(
-            f"{_W}[+] Start annotation process.\n\tinput file -> {self.path_to_input_file}\n\toutput file -> {self.path_to_output_file}"
-        )
         if self.input_df.shape[0] > 0:
             try:
                 for index, row in self.input_df.iterrows():
@@ -319,7 +423,7 @@ class DocMatchAnnotator(object):
                     current_reference_id = row["reference_doc_id"]
                     # dislay the docs and get the annotation decision
                     annot_decision = self._annotate(
-                        targed_doc_id=current_target_id,
+                        target_doc_id=current_target_id,
                         reference_doc_id=current_reference_id,
                     )
                     # add them
@@ -336,9 +440,11 @@ class DocMatchAnnotator(object):
         else:
             print(f"{_W} All documents have been annotated")
 
+
 def main() -> None:
     doc_annotator = DocMatchAnnotator()
     doc_annotator.annotate()
+
 
 if __name__ == "__main__":
     main()
