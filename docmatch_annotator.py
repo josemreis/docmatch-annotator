@@ -33,11 +33,16 @@ def make_substrings(s, L):
     return pieces
 
 
-def detect_gedit_width() -> int:
+def detect_gedit_width(timeout = 20) -> int:
     """detect the default window width from gedit using wmctrl"""
     # open gedit
     process = subprocess.Popen(["gedit", "just checking the window size..."])
-    time.sleep(5)
+    t = 0
+    while not list(os.popen("wmctrl -lGp | grep 'just checking the window size...' > /dev/null/")):
+        time.sleep(1)
+        t+=1
+        if t > timeout:
+            raise OSError("Could not open the Gedit window")
     # subset the relevant active window using the pid of the process
     relevant_window = [
         l
