@@ -378,7 +378,8 @@ class DocMatchAnnotator(object):
                 if t > timeout:
                     raise OSError("Could not open the Gedit window")
             time.sleep(1)
-            os.popen(f"wmctrl -r {window_title} -e 0,0,1848,976,1105")
+            os.popen(f"wmctrl -r {window_title} -e 0,0,1848,976,1105 > /dev/null")
+            
 
     def close_gedit_processes(self) -> None:
         """Close the gedit processes"""
