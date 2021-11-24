@@ -162,7 +162,7 @@ class DocMatchAnnotator(object):
         if not split_screen:
             self.gedit_width = detect_gedit_width()
         else:
-            self.gedit_width = 92
+            self.gedit_width = 70
 
     def prep_annotation_data(self) -> pd.DataFrame:
         """Read in the input data, keep only the relevant features, and remove already coded"""
