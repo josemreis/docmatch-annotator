@@ -60,11 +60,11 @@ Or, alternatively, via a config file saved in a json file like the one below.
 Using the config file above.
 
 ```bash
-docmatch-annotator -c "config.json.sample"
+python3 docmatch-annotator -c "config.json.sample"
 ```
 
 Using the CLI flags
 
 ```bash
-docmatch-annotator -i "/home/jr/Desktop/test_input.csv" -o "/home/jr/Desktop/test_output.csv" -tt "article_text" -rt "ruling_text" -ti "article_id" -ri "ruling_id" -m "judgment_date,date_published"
+python3 docmatch-annotator -i "/home/jr/Desktop/test_input.csv" -o "/home/jr/Desktop/test_output.csv" -tt "article_text" -rt "ruling_text" -ti "article_id" -ri "ruling_id" -m "judgment_date,date_published"
 ```
