@@ -8,7 +8,7 @@ This is a simple annotation tool for document matching. I wrote this CLI tool to
  The tool can be configured via the following command line arguments
 
 ```bash
-usage: domatch_annotator.py [-h] [-i PATH_TO_INPUT_FILE] [-o PATH_TO_OUTPUT_FILE]
+usage: docmatch_annotator.py [-h] [-i PATH_TO_INPUT_FILE] [-o PATH_TO_OUTPUT_FILE]
                             [-tt TARGET_DOC_TEXT_COLNAME] [-rt REFERENCE_DOC_TEXT_COLNAME]
                             [-ti TARGET_DOC_ID_COLNAME] [-ri REFERENCE_DOC_ID_COLNAME]
                             [-m INCLUDE_METADATA] [-c CONFIG_FILE]
